@@ -2,215 +2,72 @@ import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { useNetworkData } from '../../hooks/useNetworkData';
 import { LoadingSpinner, ErrorMessage } from '../UI';
-import { NETWORK_CONFIG } from '../../utils/constants';
-import { formatCurrency } from '../../utils/formatters';
-import type { NetworkNode, NetworkLink } from '../../types';
+import { NetworkControls } from './NetworkControls';
+import { NetworkGraphContainer } from './NetworkGraphContainer';
+import type { NetworkGraphProps, LinkMode } from './types/networkGraph';
 
-interface NetworkGraphProps {
-  centralToken: string;
-  onNodeClick: (token: string) => void;
-}
+const WIDTH = 1600;
+const HEIGHT = 1000;
 
 export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const { data, isLoading, error } = useNetworkData(centralToken, 50);
-  const [linkMode, setLinkMode] = useState<'inflow' | 'outflow'>('inflow');
-  const simulationRef = useRef<d3.Simulation<NetworkNode, NetworkLink> | null>(null);
-
-  // Move these outside useEffect
-  const width = 1200;
-  const height = 900;
-
-  const handleLinkModeChange = (mode: 'inflow' | 'outflow') => {
-    setLinkMode(mode);
-  };
+  const [linkMode, setLinkMode] = useState<LinkMode>('inflow');
 
   useEffect(() => {
     if (!data) return;
-
-    const { nodes, links } = data;
-
-    // Filter nodes and links based on mode
-    let filteredNodes: NetworkNode[] = [];
-    let filteredLinks: NetworkLink[] = [];
-    
-    // Always show all links, but mark which ones are dominant
-    filteredLinks = links;
-    const nodeIds = new Set([centralToken, ...filteredLinks.map(l => typeof l.source === 'string' ? l.source : l.source.id), ...filteredLinks.map(l => typeof l.target === 'string' ? l.target : l.target.id)]);
-    filteredNodes = nodes.filter(node => nodeIds.has(node.id));
-
-    // Clear existing SVG
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    // Stop existing simulation
-    if (simulationRef.current) {
-      simulationRef.current.stop();
-    }
+    const { nodes, links } = data;
+    if (!nodes || !links) return;
 
-    // Create new simulation with filtered data
-    const simulation = d3.forceSimulation<NetworkNode>(filteredNodes)
-      .force('link', d3.forceLink<NetworkNode, NetworkLink>(filteredLinks)
-        .id(d => d.id)
-        .distance(180)
-        .strength(0.8))
-      .force('charge', d3.forceManyBody().strength(-800))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius((d: any) => {
-        const node = d as NetworkNode;
-        return Math.max(NETWORK_CONFIG.MIN_NODE_RADIUS, Math.min(NETWORK_CONFIG.MAX_NODE_RADIUS, node.totalVolumeUSD ?? 0 / 1000000 * 2)) + 8;
-      }));
+    // Node size scale
+    const minR = 14;
+    const maxR = 36;
+    const maxVolume = d3.max(nodes, d => d.totalVolumeUSD ?? 0) || 1;
+    const rScale = d3.scaleSqrt()
+      .domain([0, maxVolume])
+      .range([minR, maxR]);
 
-    simulationRef.current = simulation;
-
-    // Add force boost for better initial spread
-    let tickCount = 0;
-    const boostDuration = 50; // Number of ticks for boost
-
-    simulation.on('tick', () => {
-      tickCount++;
-      
-      // Apply force boost for initial spread
-      if (tickCount <= boostDuration) {
-        simulation.force('charge', d3.forceManyBody().strength(-800));
-      } else if (tickCount === boostDuration + 1) {
-        // Return to normal strength
-        simulation.force('charge', d3.forceManyBody().strength(-300));
-      }
-
-      // Add subtle random force for continuous jiggle
-      filteredNodes.forEach(node => {
-        if (!node.isCentral && node.vx !== undefined && node.vy !== undefined) {
-          node.vx += (Math.random() - 0.5) * 0.01;
-          node.vy += (Math.random() - 0.5) * 0.01;
-        }
-      });
-
-      // Update positions
-      const link = svg.selectAll<SVGLineElement, NetworkLink>('line')
-        .data(filteredLinks)
-        .join('line')
-        .attr('x1', d => {
-          const source = typeof d.source === 'string' ? filteredNodes.find(n => n.id === d.source) : d.source;
-          return source?.x ?? 0;
-        })
-        .attr('y1', d => {
-          const source = typeof d.source === 'string' ? filteredNodes.find(n => n.id === d.source) : d.source;
-          return source?.y ?? 0;
-        })
-        .attr('x2', d => {
-          const target = typeof d.target === 'string' ? filteredNodes.find(n => n.id === d.target) : d.target;
-          return target?.x ?? 0;
-        })
-        .attr('y2', d => {
-          const target = typeof d.target === 'string' ? filteredNodes.find(n => n.id === d.target) : d.target;
-          return target?.y ?? 0;
-        });
-
-      const node = svg.selectAll<SVGCircleElement, NetworkNode>('circle')
-        .data(filteredNodes)
-        .join('circle')
-        .attr('cx', d => d.x ?? 0)
-        .attr('cy', d => d.y ?? 0);
-
-      const label = svg.selectAll<SVGTextElement, NetworkNode>('text')
-        .data(filteredNodes)
-        .join('text')
-        .attr('x', d => (d.x ?? 0) + 20)
-        .attr('y', d => (d.y ?? 0) + 5);
-    });
+    // D3 simulation
+    const simulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id((d: any) => d.id).distance(260).strength(0.8))
+      .force('charge', d3.forceManyBody().strength(-1200))
+      .force('center', d3.forceCenter(WIDTH / 2, HEIGHT / 2))
+      .force('collision', d3.forceCollide().radius((d: any) => rScale(d.totalVolumeUSD ?? 0) + 8))
+      .on('tick', ticked);
 
     // Draw links
-    const minStroke = 1.5;
-    const maxStroke = 8;
-    
-    // Calculate stroke scale based on link mode
-    let strokeScale: d3.ScaleLinear<number, number>;
-    if (linkMode === 'inflow') {
-      const ratioExtent = d3.extent(filteredLinks, d => {
-        const inflow = d.centralInflow ?? 0;
-        const outflow = d.centralOutflow ?? 0;
-        return outflow > 0 ? inflow / outflow : 0;
-      });
-      strokeScale = d3.scaleLinear()
-        .domain(ratioExtent as [number, number])
-        .range([minStroke, maxStroke])
-        .clamp(true);
-    } else {
-      // outflow mode
-      const ratioExtent = d3.extent(filteredLinks, d => {
-        const inflow = d.centralInflow ?? 0;
-        const outflow = d.centralOutflow ?? 0;
-        return inflow > 0 ? outflow / inflow : 0;
-      });
-      strokeScale = d3.scaleLinear()
-        .domain(ratioExtent as [number, number])
-        .range([minStroke, maxStroke])
-        .clamp(true);
-    }
-
     const link = svg.append('g')
+      .attr('class', 'links')
       .selectAll('line')
-      .data(filteredLinks)
-      .enter()
-      .append('line')
-      .attr('stroke', d => {
-        const inflow = d.centralInflow ?? 0;
-        const outflow = d.centralOutflow ?? 0;
-        
-        if (linkMode === 'inflow') {
-          return outflow > 0 && inflow / outflow > 1 ? '#10b981' : '#666';
-        } else {
-          return inflow > 0 && outflow / inflow > 1 ? '#ef4444' : '#666';
-        }
-      })
-      .attr('stroke-width', d => {
-        const inflow = d.centralInflow ?? 0;
-        const outflow = d.centralOutflow ?? 0;
-        
-        if (linkMode === 'inflow') {
-          return outflow > 0 && inflow / outflow > 1 ? strokeScale(inflow / outflow) : 1;
-        } else {
-          return inflow > 0 && outflow / inflow > 1 ? strokeScale(outflow / inflow) : 1;
-        }
-      })
-      .style('opacity', d => {
-        const inflow = d.centralInflow ?? 0;
-        const outflow = d.centralOutflow ?? 0;
-        
-        if (linkMode === 'inflow') {
-          return outflow > 0 && inflow / outflow > 1 ? 0.8 : 0.3;
-        } else {
-          return inflow > 0 && outflow / inflow > 1 ? 0.8 : 0.3;
-        }
-      });
+      .data(links)
+      .enter().append('line');
 
     // Draw nodes
     const node = svg.append('g')
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1.5)
       .selectAll('circle')
-      .data(filteredNodes)
-      .enter()
-      .append('circle')
-      .attr('r', d => {
-        if (d.isCentral) {
-          return NETWORK_CONFIG.CENTRAL_NODE_RADIUS;
-        }
-        const volume = d.totalVolumeUSD ?? 0;
-        return Math.max(NETWORK_CONFIG.MIN_NODE_RADIUS, 
-          Math.min(NETWORK_CONFIG.MAX_NODE_RADIUS, volume / 1000000 * 2));
-      })
-      .attr('fill', d => d.isCentral ? '#3b82f6' : '#6b7280')
-      .style('cursor', 'pointer')
+      .data(nodes)
+      .enter().append('circle')
+      .attr('r', d => rScale(d.totalVolumeUSD ?? 0))
+      .attr('fill', d => d.id === centralToken ? '#3b82f6' : '#6b7280')
+      .call((d3.drag() as any)
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended))
       .on('click', (event, d) => {
-        if (onNodeClick && !d.isCentral) {
+        if (onNodeClick && d.id !== centralToken) {
           onNodeClick(d.id);
         }
       })
-      .on('mouseover', function (event, d) {
-        let tooltip = d3.select('body').select<HTMLDivElement>('.network-tooltip');
+      .on('mouseover', function(event, d) {
+        let tooltip = d3.select('body').select('.network-tooltip') as any;
         if (tooltip.empty()) {
-          tooltip = d3.select('body').append('div')
-            .attr('class', 'network-tooltip')
+          tooltip = d3.select('body').append('div') as any;
+          tooltip.attr('class', 'network-tooltip')
             .style('position', 'absolute')
             .style('background', 'rgba(0, 0, 0, 0.9)')
             .style('color', 'white')
@@ -222,133 +79,198 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
             .style('max-width', '300px')
             .style('white-space', 'nowrap');
         }
-        
-        const node = d as NetworkNode;
-        
+        const node: any = d;
         // Find all links connected to this node
-        const connectedLinks = filteredLinks.filter(link => {
-          const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-          const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+        const connectedLinks = links.filter((l: any) => {
+          const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+          const targetId = typeof l.target === 'object' ? l.target.id : l.target;
           return sourceId === node.id || targetId === node.id;
         });
-
-        let tooltipContent = `
+        // Sum inflow/outflow for this node
+        let inflow = 0;
+        let outflow = 0;
+        connectedLinks.forEach((l: any) => {
+          const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+          if (sourceId === node.id) {
+            outflow += l.centralOutflow ?? l.tokenAOutflowUSD ?? 0;
+            inflow += l.centralInflow ?? l.tokenAInflowUSD ?? 0;
+          } else {
+            outflow += l.centralOutflow ?? l.tokenBOutflowUSD ?? 0;
+            inflow += l.centralInflow ?? l.tokenBInflowUSD ?? 0;
+          }
+        });
+        const outflowInflowRatio = inflow > 0 && outflow > 0 ? (outflow / inflow).toFixed(2) : 'N/A';
+        const inflowOutflowRatio = inflow > 0 && outflow > 0 ? (inflow / outflow).toFixed(2) : 'N/A';
+        const html = `
           <div style="margin-bottom: 8px;">
             <div style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">${node.id}</div>
             <div>Total Volume: $${(node.totalVolumeUSD ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
             <div>Total Swaps: ${(node.totalSwaps ?? 0).toLocaleString()}</div>
+            <div>Inflow: $${inflow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+            <div>Outflow: $${outflow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+            <div>Outflow/Inflow: ${outflowInflowRatio}</div>
+            <div>Inflow/Outflow: ${inflowOutflowRatio}</div>
           </div>
         `;
-
-        if (connectedLinks.length > 0) {
-          tooltipContent += '<div style="border-top: 1px solid #444; padding-top: 8px; margin-top: 8px;">';
-          tooltipContent += '<div style="font-weight: bold; margin-bottom: 4px;">Connected Pairs:</div>';
-          
-          connectedLinks.forEach(link => {
-            const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-            const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-            const otherToken = sourceId === node.id ? targetId : sourceId;
-            
-            const centralInflow = link.centralInflow ?? 0;
-            const centralOutflow = link.centralOutflow ?? 0;
-            const totalVolume = link.totalVolumeUSD ?? 0;
-            const totalSwaps = link.totalSwaps ?? 0;
-            
-            // Calculate ratios
-            const outflowInflowRatio = centralOutflow > 0 && centralInflow > 0 ? (centralOutflow / centralInflow).toFixed(2) : 'N/A';
-            const inflowOutflowRatio = centralInflow > 0 && centralOutflow > 0 ? (centralInflow / centralOutflow).toFixed(2) : 'N/A';
-            
-            tooltipContent += `
-              <div style="margin-bottom: 6px; padding: 4px; background: rgba(255,255,255,0.1); border-radius: 3px;">
-                <div style="font-weight: bold; color: #60a5fa;">${node.id} ↔ ${otherToken}</div>
-                <div>Volume: $${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                <div>Swaps: ${totalSwaps.toLocaleString()}</div>
-                <div>Inflow: $${centralInflow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                <div>Outflow: $${centralOutflow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                <div>Outflow/Inflow: ${outflowInflowRatio}</div>
-                <div>Inflow/Outflow: ${inflowOutflowRatio}</div>
-              </div>
-            `;
-          });
-          
-          tooltipContent += '</div>';
-        }
-
-        tooltip.transition().duration(200).style('opacity', 1);
-        tooltip.html(tooltipContent)
-          .style('left', event.pageX + 10 + 'px')
-          .style('top', event.pageY - 28 + 'px');
+        tooltip.html(html)
+          .style('left', (event.pageX + 10) + 'px')
+          .style('top', (event.pageY - 28) + 'px')
+          .transition().duration(200).style('opacity', 1);
       })
-      .on('mouseout', function (event, d) {
-        // Hide tooltip
+      .on('mousemove', function(event) {
         d3.select('body').select('.network-tooltip')
-          .transition()
-          .duration(200)
-          .style('opacity', 0);
+          .style('left', (event.pageX + 10) + 'px')
+          .style('top', (event.pageY - 28) + 'px');
       })
-      .call(d3.drag<SVGCircleElement, NetworkNode>()
-        .on('start', function(event, d) {
-          if (!event.active) simulationRef.current?.alphaTarget(0.3).restart();
-          d.fx = d.x;
-          d.fy = d.y;
-        })
-        .on('drag', function(event, d) {
-          d.fx = event.x;
-          d.fy = event.y;
-        })
-        .on('end', function(event, d) {
-          if (!event.active) simulationRef.current?.alphaTarget(0);
-          d.fx = null;
-          d.fy = null;
-        })
-      );
+      .on('mouseout', function() {
+        d3.select('body').select('.network-tooltip')
+          .transition().duration(200).style('opacity', 0);
+      });
 
-    // Draw labels for each node
+    // Draw labels
     const label = svg.append('g')
       .selectAll('text')
-      .data(filteredNodes)
-      .enter()
-      .append('text')
+      .data(nodes)
+      .enter().append('text')
       .text(d => d.id)
       .attr('fill', '#fff')
       .attr('font-size', '12px')
       .attr('font-weight', 'bold')
       .style('pointer-events', 'none');
 
-    // Cleanup function
+    function updateLinkStyles() {
+      const minStroke = 1.5;
+      const maxStroke = 8;
+      link
+        .attr('stroke', (d: any) => {
+          const inflow = d.centralInflow ?? 0;
+          const outflow = d.centralOutflow ?? 0;
+          if (linkMode === 'inflow') {
+            return outflow > 0 && inflow / outflow > 1 ? '#10b981' : '#666';
+          } else {
+            return inflow > 0 && outflow / inflow > 1 ? '#ef4444' : '#666';
+          }
+        })
+        .attr('stroke-width', (d: any) => {
+          const inflow = d.centralInflow ?? 0;
+          const outflow = d.centralOutflow ?? 0;
+          let ratio = 1;
+          if (linkMode === 'inflow') {
+            ratio = outflow > 0 ? inflow / outflow : 0;
+          } else {
+            ratio = inflow > 0 ? outflow / inflow : 0;
+          }
+          if ((linkMode === 'inflow' && outflow > 0 && inflow / outflow > 1) ||
+              (linkMode === 'outflow' && inflow > 0 && outflow / inflow > 1)) {
+            return Math.max(minStroke, Math.min(maxStroke, ratio * 2));
+          }
+          return minStroke;
+        })
+        .style('opacity', (d: any) => {
+          const inflow = d.centralInflow ?? 0;
+          const outflow = d.centralOutflow ?? 0;
+          if (linkMode === 'inflow') {
+            return outflow > 0 && inflow / outflow > 1 ? 0.8 : 0.3;
+          } else {
+            return inflow > 0 && outflow / inflow > 1 ? 0.8 : 0.3;
+          }
+        });
+    }
+
+    updateLinkStyles();
+
+    function ticked() {
+      link
+        .attr('x1', d => typeof d.source === 'object' && d.source !== null ? (d.source.x ?? 0) : 0)
+        .attr('y1', d => typeof d.source === 'object' && d.source !== null ? (d.source.y ?? 0) : 0)
+        .attr('x2', d => typeof d.target === 'object' && d.target !== null ? (d.target.x ?? 0) : 0)
+        .attr('y2', d => typeof d.target === 'object' && d.target !== null ? (d.target.y ?? 0) : 0);
+      node
+        .attr('cx', d => d.x ?? 0)
+        .attr('cy', d => d.y ?? 0);
+      label
+        .attr('x', d => (d.x ?? 0) + 22)
+        .attr('y', d => (d.y ?? 0) + 5);
+    }
+
+    function dragstarted(event: any, d: any) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+    function dragged(event: any, d: any) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+    function dragended(event: any, d: any) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
+
+    // Listen for linkMode changes
+    const unsub = () => {};
     return () => {
-      if (simulationRef.current) {
-        simulationRef.current.stop();
-      }
+      simulation.stop();
+      svg.selectAll('*').remove();
       d3.selectAll('.network-tooltip').remove();
+      unsub();
     };
   }, [data, centralToken, onNodeClick, linkMode]);
+
+  // When linkMode changes, update link styles
+  useEffect(() => {
+    const svg = d3.select(svgRef.current);
+    const link = svg.selectAll('g.links line');
+    if (!link.empty()) {
+      const minStroke = 1.5;
+      const maxStroke = 8;
+      link
+        .attr('stroke', (d: any) => {
+          const inflow = d.centralInflow ?? 0;
+          const outflow = d.centralOutflow ?? 0;
+          if (linkMode === 'inflow') {
+            return outflow > 0 && inflow / outflow > 1 ? '#10b981' : '#666';
+          } else {
+            return inflow > 0 && outflow / inflow > 1 ? '#ef4444' : '#666';
+          }
+        })
+        .attr('stroke-width', (d: any) => {
+          const inflow = d.centralInflow ?? 0;
+          const outflow = d.centralOutflow ?? 0;
+          let ratio = 1;
+          if (linkMode === 'inflow') {
+            ratio = outflow > 0 ? inflow / outflow : 0;
+          } else {
+            ratio = inflow > 0 ? outflow / inflow : 0;
+          }
+          if ((linkMode === 'inflow' && outflow > 0 && inflow / outflow > 1) ||
+              (linkMode === 'outflow' && inflow > 0 && outflow / inflow > 1)) {
+            return Math.max(minStroke, Math.min(maxStroke, ratio * 2));
+          }
+          return minStroke;
+        })
+        .style('opacity', (d: any) => {
+          const inflow = d.centralInflow ?? 0;
+          const outflow = d.centralOutflow ?? 0;
+          if (linkMode === 'inflow') {
+            return outflow > 0 && inflow / outflow > 1 ? 0.8 : 0.3;
+          } else {
+            return inflow > 0 && outflow / inflow > 1 ? 0.8 : 0.3;
+          }
+        });
+    }
+  }, [linkMode]);
 
   if (isLoading) return <LoadingSpinner />;
   if (error) return <ErrorMessage message={error.toString()} />;
 
   return (
-    <div className="w-full flex justify-center">
-      <div className="bg-gray-900 rounded-lg p-4 min-w-[900px] mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Network Graph - {centralToken}</h2>
-          <div className="flex items-center space-x-2 text-sm">
-            <button
-              className={`px-2 py-1 rounded ${linkMode === 'inflow' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-200'}`}
-              onClick={() => handleLinkModeChange('inflow')}
-            >
-              Inflow
-            </button>
-            <button
-              className={`px-2 py-1 rounded ${linkMode === 'outflow' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-200'}`}
-              onClick={() => handleLinkModeChange('outflow')}
-            >
-              Outflow
-            </button>
-          </div>
-        </div>
-        <svg ref={svgRef} width={width} height={height} />
+    <NetworkGraphContainer centralToken={centralToken}>
+      <div className="flex items-center justify-between mb-4">
+        <NetworkControls linkMode={linkMode} onModeChange={setLinkMode} />
       </div>
-    </div>
+      <svg ref={svgRef} width={WIDTH} height={HEIGHT} />
+    </NetworkGraphContainer>
   );
 }; 

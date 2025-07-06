@@ -1,0 +1,38 @@
+/* Network Graph specific styles */
+.network-tooltip {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
+  max-width: 300px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.network-tooltip.show {
+  opacity: 1;
+}
+
+/* D3 SVG elements */
+.node {
+  cursor: pointer;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.node:hover {
+  opacity: 0.8;
+}
+
+.link {
+  transition: opacity 0.2s ease-in-out;
+}
+
+.label {
+  pointer-events: none;
+  user-select: none;
+} 

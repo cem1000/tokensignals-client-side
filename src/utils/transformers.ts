@@ -25,7 +25,7 @@ export const transformNetworkData = (
   nodeMap[centralToken] = centralNode;
   
   // Process each pair - API now provides centralToken and otherToken
-  Object.entries(tokenPairs).forEach(([pairKey, pair]) => {
+  Object.entries(tokenPairs).forEach(([_pairKey, pair]) => {
     const { centralToken, otherToken, totalVolumeUSD, totalSwaps, centralTokenInflowUSD, centralTokenOutflowUSD, otherTokenInflowUSD, otherTokenOutflowUSD } = pair;
     
     // Add other token node if not already added

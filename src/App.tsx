@@ -19,7 +19,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+      <div className="flex flex-col min-h-screen bg-gray-950">
         <Header onTokenSelect={setCentralToken} />
         <div className="bg-gray-800 border-b border-gray-700 px-4 py-2">
           <TokenStats tokenSymbol={centralToken} />

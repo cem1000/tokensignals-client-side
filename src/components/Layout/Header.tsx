@@ -1,3 +1,4 @@
+import React from 'react';
 import { TrendingUp } from 'lucide-react';
 import { TokenSearch } from '../TokenSearch/TokenSearch';
 
@@ -5,22 +6,16 @@ interface HeaderProps {
   onTokenSelect: (token: string) => void;
 }
 
-export const Header = ({ onTokenSelect }: HeaderProps) => {
+export const Header: React.FC<HeaderProps> = ({ onTokenSelect }) => {
   return (
-    <header className="bg-gray-900 border-b border-gray-800">
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <TrendingUp className="text-blue-500" size={28} />
-            <div>
-              <h1 className="text-lg font-bold text-white">TokenSignals</h1>
-              <p className="text-xs text-gray-400">Uniswap Network Visualizer</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <TokenSearch onTokenSelect={onTokenSelect} />
-          </div>
-        </div>
+    <header className="w-full bg-gray-950 border-b border-gray-800 flex items-center justify-between px-8 py-3">
+      <div className="flex items-center">
+        <span className="text-blue-400 font-bold text-xl tracking-tight mr-2">TokenSignals</span>
+        <span className="text-xs text-gray-400 font-light">Uniswap Network Visualizer</span>
+      </div>
+      <div className="flex-1" />
+      <div className="flex items-center space-x-4">
+        <TokenSearch onTokenSelect={onTokenSelect} />
       </div>
     </header>
   );
