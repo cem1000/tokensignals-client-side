@@ -14,46 +14,30 @@ interface NetworkGraphProps {
 export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const { data, isLoading, error } = useNetworkData(centralToken, 50);
-  const [linkMode, setLinkMode] = useState<'inflow' | 'outflow' | 'all'>('outflow');
+  const [linkMode, setLinkMode] = useState<'inflow' | 'outflow'>('inflow');
   const simulationRef = useRef<d3.Simulation<NetworkNode, NetworkLink> | null>(null);
 
   // Move these outside useEffect
   const width = 1200;
   const height = 900;
 
+  const handleLinkModeChange = (mode: 'inflow' | 'outflow') => {
+    setLinkMode(mode);
+  };
+
   useEffect(() => {
     if (!data) return;
 
     const { nodes, links } = data;
 
-    // Filter links based on mode
-    let filteredLinks = links;
-    if (linkMode === 'inflow') {
-      filteredLinks = links.filter(l => {
-        const inflow = l.centralInflow ?? 0;
-        const outflow = l.centralOutflow ?? 0;
-        return outflow > 0 && inflow / outflow > 1;
-      });
-    } else if (linkMode === 'outflow') {
-      filteredLinks = links.filter(l => {
-        const inflow = l.centralInflow ?? 0;
-        const outflow = l.centralOutflow ?? 0;
-        return inflow > 0 && outflow / inflow > 1;
-      });
-    }
-
-    // Filter nodes to only show connected ones (plus central node)
-    const connectedNodeIds = new Set<string>();
-    connectedNodeIds.add(centralToken); // Always include central node
+    // Filter nodes and links based on mode
+    let filteredNodes: NetworkNode[] = [];
+    let filteredLinks: NetworkLink[] = [];
     
-    filteredLinks.forEach(link => {
-      const source = typeof link.source === 'string' ? link.source : link.source.id;
-      const target = typeof link.target === 'string' ? link.target : link.target.id;
-      connectedNodeIds.add(source);
-      connectedNodeIds.add(target);
-    });
-
-    const filteredNodes = nodes.filter(node => connectedNodeIds.has(node.id));
+    // Always show all links, but mark which ones are dominant
+    filteredLinks = links;
+    const nodeIds = new Set([centralToken, ...filteredLinks.map(l => typeof l.source === 'string' ? l.source : l.source.id), ...filteredLinks.map(l => typeof l.target === 'string' ? l.target : l.target.id)]);
+    filteredNodes = nodes.filter(node => nodeIds.has(node.id));
 
     // Clear existing SVG
     const svg = d3.select(svgRef.current);
@@ -141,7 +125,7 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
     const maxStroke = 8;
     
     // Calculate stroke scale based on link mode
-    let strokeScale;
+    let strokeScale: d3.ScaleLinear<number, number>;
     if (linkMode === 'inflow') {
       const ratioExtent = d3.extent(filteredLinks, d => {
         const inflow = d.centralInflow ?? 0;
@@ -152,7 +136,8 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
         .domain(ratioExtent as [number, number])
         .range([minStroke, maxStroke])
         .clamp(true);
-    } else if (linkMode === 'outflow') {
+    } else {
+      // outflow mode
       const ratioExtent = d3.extent(filteredLinks, d => {
         const inflow = d.centralInflow ?? 0;
         const outflow = d.centralOutflow ?? 0;
@@ -162,13 +147,6 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
         .domain(ratioExtent as [number, number])
         .range([minStroke, maxStroke])
         .clamp(true);
-    } else {
-      // All mode - use total volume
-      const volumeExtent = d3.extent(filteredLinks, d => d.totalVolumeUSD || 1);
-      strokeScale = d3.scaleLinear()
-        .domain(volumeExtent as [number, number])
-        .range([minStroke, maxStroke])
-        .clamp(true);
     }
 
     const link = svg.append('g')
@@ -176,23 +154,36 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
       .data(filteredLinks)
       .enter()
       .append('line')
-      .attr('stroke', linkMode === 'outflow' ? '#ef4444' : linkMode === 'inflow' ? '#10b981' : '#888')
-      .attr('stroke-width', d => {
+      .attr('stroke', d => {
+        const inflow = d.centralInflow ?? 0;
+        const outflow = d.centralOutflow ?? 0;
+        
         if (linkMode === 'inflow') {
-          const inflow = d.centralInflow ?? 0;
-          const outflow = d.centralOutflow ?? 0;
-          const ratio = outflow > 0 ? inflow / outflow : 0;
-          return strokeScale(ratio);
-        } else if (linkMode === 'outflow') {
-          const inflow = d.centralInflow ?? 0;
-          const outflow = d.centralOutflow ?? 0;
-          const ratio = inflow > 0 ? outflow / inflow : 0;
-          return strokeScale(ratio);
+          return outflow > 0 && inflow / outflow > 1 ? '#10b981' : '#666';
         } else {
-          return strokeScale(d.totalVolumeUSD || 1);
+          return inflow > 0 && outflow / inflow > 1 ? '#ef4444' : '#666';
         }
       })
-      .style('opacity', 0.6);
+      .attr('stroke-width', d => {
+        const inflow = d.centralInflow ?? 0;
+        const outflow = d.centralOutflow ?? 0;
+        
+        if (linkMode === 'inflow') {
+          return outflow > 0 && inflow / outflow > 1 ? strokeScale(inflow / outflow) : 1;
+        } else {
+          return inflow > 0 && outflow / inflow > 1 ? strokeScale(outflow / inflow) : 1;
+        }
+      })
+      .style('opacity', d => {
+        const inflow = d.centralInflow ?? 0;
+        const outflow = d.centralOutflow ?? 0;
+        
+        if (linkMode === 'inflow') {
+          return outflow > 0 && inflow / outflow > 1 ? 0.8 : 0.3;
+        } else {
+          return inflow > 0 && outflow / inflow > 1 ? 0.8 : 0.3;
+        }
+      });
 
     // Draw nodes
     const node = svg.append('g')
@@ -288,9 +279,29 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
           .style('left', event.pageX + 10 + 'px')
           .style('top', event.pageY - 28 + 'px');
       })
-      .on('mouseout', function() {
-        d3.selectAll('.network-tooltip').remove();
-      });
+      .on('mouseout', function (event, d) {
+        // Hide tooltip
+        d3.select('body').select('.network-tooltip')
+          .transition()
+          .duration(200)
+          .style('opacity', 0);
+      })
+      .call(d3.drag<SVGCircleElement, NetworkNode>()
+        .on('start', function(event, d) {
+          if (!event.active) simulationRef.current?.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on('drag', function(event, d) {
+          d.fx = event.x;
+          d.fy = event.y;
+        })
+        .on('end', function(event, d) {
+          if (!event.active) simulationRef.current?.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        })
+      );
 
     // Draw labels for each node
     const label = svg.append('g')
@@ -324,21 +335,15 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
           <div className="flex items-center space-x-2 text-sm">
             <button
               className={`px-2 py-1 rounded ${linkMode === 'inflow' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-200'}`}
-              onClick={() => setLinkMode('inflow')}
+              onClick={() => handleLinkModeChange('inflow')}
             >
               Inflow
             </button>
             <button
               className={`px-2 py-1 rounded ${linkMode === 'outflow' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-200'}`}
-              onClick={() => setLinkMode('outflow')}
+              onClick={() => handleLinkModeChange('outflow')}
             >
               Outflow
-            </button>
-            <button
-              className={`px-2 py-1 rounded ${linkMode === 'all' ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-200'}`}
-              onClick={() => setLinkMode('all')}
-            >
-              All
             </button>
           </div>
         </div>
