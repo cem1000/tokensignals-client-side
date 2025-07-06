@@ -139,11 +139,37 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
     // Draw links
     const minStroke = 1.5;
     const maxStroke = 8;
-    const volumeExtent = d3.extent(filteredLinks, d => d.totalVolumeUSD || 1);
-    const strokeScale = d3.scaleLinear()
-      .domain(volumeExtent as [number, number])
-      .range([minStroke, maxStroke])
-      .clamp(true);
+    
+    // Calculate stroke scale based on link mode
+    let strokeScale;
+    if (linkMode === 'inflow') {
+      const ratioExtent = d3.extent(filteredLinks, d => {
+        const inflow = d.centralInflow ?? 0;
+        const outflow = d.centralOutflow ?? 0;
+        return outflow > 0 ? inflow / outflow : 0;
+      });
+      strokeScale = d3.scaleLinear()
+        .domain(ratioExtent as [number, number])
+        .range([minStroke, maxStroke])
+        .clamp(true);
+    } else if (linkMode === 'outflow') {
+      const ratioExtent = d3.extent(filteredLinks, d => {
+        const inflow = d.centralInflow ?? 0;
+        const outflow = d.centralOutflow ?? 0;
+        return inflow > 0 ? outflow / inflow : 0;
+      });
+      strokeScale = d3.scaleLinear()
+        .domain(ratioExtent as [number, number])
+        .range([minStroke, maxStroke])
+        .clamp(true);
+    } else {
+      // All mode - use total volume
+      const volumeExtent = d3.extent(filteredLinks, d => d.totalVolumeUSD || 1);
+      strokeScale = d3.scaleLinear()
+        .domain(volumeExtent as [number, number])
+        .range([minStroke, maxStroke])
+        .clamp(true);
+    }
 
     const link = svg.append('g')
       .selectAll('line')
@@ -151,7 +177,21 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
       .enter()
       .append('line')
       .attr('stroke', linkMode === 'outflow' ? '#ef4444' : linkMode === 'inflow' ? '#10b981' : '#888')
-      .attr('stroke-width', d => strokeScale(d.totalVolumeUSD || 1))
+      .attr('stroke-width', d => {
+        if (linkMode === 'inflow') {
+          const inflow = d.centralInflow ?? 0;
+          const outflow = d.centralOutflow ?? 0;
+          const ratio = outflow > 0 ? inflow / outflow : 0;
+          return strokeScale(ratio);
+        } else if (linkMode === 'outflow') {
+          const inflow = d.centralInflow ?? 0;
+          const outflow = d.centralOutflow ?? 0;
+          const ratio = inflow > 0 ? outflow / inflow : 0;
+          return strokeScale(ratio);
+        } else {
+          return strokeScale(d.totalVolumeUSD || 1);
+        }
+      })
       .style('opacity', 0.6);
 
     // Draw nodes
