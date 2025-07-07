@@ -5,14 +5,42 @@ import { LoadingSpinner, ErrorMessage } from '../UI';
 import { NetworkControls } from './NetworkControls';
 import { NetworkGraphContainer } from './NetworkGraphContainer';
 import type { NetworkGraphProps, LinkMode } from './types/networkGraph';
+import { transformNetworkData } from '../../utils/transformers';
 
 const WIDTH = 1600;
 const HEIGHT = 1000;
 
+function fetchNetworkData(token: string, window: '24h' | '1h') {
+  const endpoint = window === '1h'
+    ? `/api/token-pairs/${token}?window=1h`
+    : `/api/token-pairs/${token}`;
+  return fetch(endpoint).then(res => res.json());
+}
+
 export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
-  const { data, isLoading, error } = useNetworkData(centralToken, 50);
   const [linkMode, setLinkMode] = useState<LinkMode>('inflow');
+  const [window, setWindow] = useState<'24h' | '1h'>('24h');
+  const [data, setData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsLoading(true);
+    setError(null);
+    fetchNetworkData(centralToken, window)
+      .then(res => {
+        console.log('NetworkGraph API response:', res);
+        // Transform the pair map into nodes/links
+        const networkData = transformNetworkData(res.data, centralToken);
+        setData(networkData);
+        setIsLoading(false);
+      })
+      .catch(e => {
+        setError(e.message || 'Error fetching data');
+        setIsLoading(false);
+      });
+  }, [centralToken, window]);
 
   useEffect(() => {
     if (!data) return;
@@ -25,7 +53,7 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
     // Node size scale
     const minR = 14;
     const maxR = 36;
-    const maxVolume = d3.max(nodes, d => d.totalVolumeUSD ?? 0) || 1;
+    const maxVolume = d3.max(nodes as any[], (d: any) => d.totalVolumeUSD ?? 0) || 1;
     const rScale = d3.scaleSqrt()
       .domain([0, maxVolume])
       .range([minR, maxR]);
@@ -52,18 +80,18 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
       .selectAll('circle')
       .data(nodes)
       .enter().append('circle')
-      .attr('r', d => rScale(d.totalVolumeUSD ?? 0))
-      .attr('fill', d => d.id === centralToken ? '#3b82f6' : '#6b7280')
+      .attr('r', (d: any) => rScale(d.totalVolumeUSD ?? 0))
+      .attr('fill', (d: any) => d.id === centralToken ? '#3b82f6' : '#6b7280')
       .call((d3.drag() as any)
         .on('start', dragstarted)
         .on('drag', dragged)
         .on('end', dragended))
-      .on('click', (event, d) => {
+      .on('click', (event: any, d: any) => {
         if (onNodeClick && d.id !== centralToken) {
           onNodeClick(d.id);
         }
       })
-      .on('mouseover', function(event, d) {
+      .on('mouseover', function(event, d: any) {
         let tooltip = d3.select('body').select('.network-tooltip') as any;
         if (tooltip.empty()) {
           tooltip = d3.select('body').append('div') as any;
@@ -117,12 +145,12 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
           .style('top', (event.pageY - 28) + 'px')
           .transition().duration(200).style('opacity', 1);
       })
-      .on('mousemove', function(event) {
+      .on('mousemove', function(event: any) {
         d3.select('body').select('.network-tooltip')
           .style('left', (event.pageX + 10) + 'px')
           .style('top', (event.pageY - 28) + 'px');
       })
-      .on('mouseout', function() {
+      .on('mouseout', function(this: any) {
         d3.select('body').select('.network-tooltip')
           .transition().duration(200).style('opacity', 0);
       });
@@ -181,16 +209,16 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
 
     function ticked() {
       link
-        .attr('x1', d => typeof d.source === 'object' && d.source !== null ? (d.source.x ?? 0) : 0)
-        .attr('y1', d => typeof d.source === 'object' && d.source !== null ? (d.source.y ?? 0) : 0)
-        .attr('x2', d => typeof d.target === 'object' && d.target !== null ? (d.target.x ?? 0) : 0)
-        .attr('y2', d => typeof d.target === 'object' && d.target !== null ? (d.target.y ?? 0) : 0);
+        .attr('x1', (d: any) => typeof d.source === 'object' && d.source !== null ? (d.source.x ?? 0) : 0)
+        .attr('y1', (d: any) => typeof d.source === 'object' && d.source !== null ? (d.source.y ?? 0) : 0)
+        .attr('x2', (d: any) => typeof d.target === 'object' && d.target !== null ? (d.target.x ?? 0) : 0)
+        .attr('y2', (d: any) => typeof d.target === 'object' && d.target !== null ? (d.target.y ?? 0) : 0);
       node
-        .attr('cx', d => d.x ?? 0)
-        .attr('cy', d => d.y ?? 0);
+        .attr('cx', (d: any) => d.x ?? 0)
+        .attr('cy', (d: any) => d.y ?? 0);
       label
-        .attr('x', d => (d.x ?? 0) + 22)
-        .attr('y', d => (d.y ?? 0) + 5);
+        .attr('x', (d: any) => (d.x ?? 0) + 22)
+        .attr('y', (d: any) => (d.y ?? 0) + 5);
     }
 
     function dragstarted(event: any, d: any) {
@@ -263,12 +291,17 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
   }, [linkMode]);
 
   if (isLoading) return <LoadingSpinner />;
-  if (error) return <ErrorMessage message={error.toString()} />;
+  if (error) return <ErrorMessage message={error} />;
 
   return (
     <NetworkGraphContainer centralToken={centralToken}>
       <div className="flex items-center justify-between mb-4">
-        <NetworkControls linkMode={linkMode} onModeChange={setLinkMode} />
+        <NetworkControls
+          linkMode={linkMode}
+          onModeChange={setLinkMode}
+          window={window}
+          onWindowChange={setWindow}
+        />
       </div>
       <svg ref={svgRef} width={WIDTH} height={HEIGHT} />
     </NetworkGraphContainer>
