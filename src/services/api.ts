@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import type { Token, TokenPair, Swap } from '../types';
+import type { Token, TokenPair, Swap, NetworkData } from '../types';
 import { API_ENDPOINTS } from '../utils/constants';
 
 export const tokenApi = {
@@ -12,7 +12,7 @@ export const tokenApi = {
   },
 
   getTokenPairs: async (symbol: string, limit: number = 50) => {
-    return apiClient.get<Record<string, TokenPair>>(`${API_ENDPOINTS.TOKEN_PAIRS}/${symbol}?limit=${limit}`);
+    return apiClient.get<NetworkData>(`${API_ENDPOINTS.TOKEN_PAIRS}/${symbol}?limit=${limit}`);
   }
 };
 
