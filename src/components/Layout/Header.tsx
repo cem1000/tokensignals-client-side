@@ -1,5 +1,4 @@
 import React from 'react';
-import { TrendingUp } from 'lucide-react';
 import { TokenSearch } from '../TokenSearch/TokenSearch';
 
 interface HeaderProps {

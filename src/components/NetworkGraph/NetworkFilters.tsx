@@ -1,7 +1,7 @@
 import React from 'react';
-import { VOLUME_BUCKETS, getMinVolumeFromIndex } from './utils/networkFilters';
+import { VOLUME_BUCKETS, getMinVolumeFromIndex } from './utils/networkUtils';
 
-const LIMIT_OPTIONS = [50, 100, 200];
+const LIMIT_OPTIONS = [5, 10, 25, 50, 100, 200, 500];
 
 interface NetworkFiltersProps {
   limit: number;

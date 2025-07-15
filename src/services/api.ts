@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import type { Token, TokenPair, Swap, NetworkData } from '../types';
+import type { Token, Swap, NetworkData } from '../types';
 import { API_ENDPOINTS } from '../utils/constants';
 
 export const tokenApi = {
