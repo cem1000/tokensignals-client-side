@@ -7,24 +7,28 @@ import { useNetworkTooltip } from './hooks/useNetworkTooltip';
 import { useNetworkGraph } from './hooks/useNetworkGraph';
 import { useNetworkDataSimplified } from './hooks/useNetworkDataSimplified';
 import { LinkModeFilter } from './LinkModeFilter';
+import { Breadcrumb } from '../UI/Breadcrumb';
 import type { NetworkGraphProps } from './types/networkGraph';
 
-export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) => {
+interface NetworkGraphWithBreadcrumbProps extends NetworkGraphProps {
+  navigationPath: string[];
+  currentToken: string;
+  onTokenClick: (token: string) => void;
+}
+
+export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, currentToken, onTokenClick }: NetworkGraphWithBreadcrumbProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [window, setWindow] = useState<'24h' | '1h'>('24h');
   const [limit, setLimit] = useState<number>(25);
-  const [minVolumeIdx, setMinVolumeIdx] = useState<number>(0);
   const [linkFilter, setLinkFilter] = useState<'all' | 'buy' | 'sell'>('all');
-  
   const { showTooltip, hideTooltip, destroyTooltip } = useNetworkTooltip();
-  
   const {
     filteredNodes,
     filteredLinks,
     window: dataWindow,
     isLoading,
     error
-  } = useNetworkDataSimplified(centralToken, window, limit, minVolumeIdx, linkFilter);
+  } = useNetworkDataSimplified(centralToken, window, limit, 0, linkFilter);
 
   useNetworkGraph({
     svgRef,
@@ -43,21 +47,29 @@ export const NetworkGraph = ({ centralToken, onNodeClick }: NetworkGraphProps) =
 
   return (
     <div>
-      <NetworkFilters
-        limit={limit}
-        onLimitChange={setLimit}
-        minVolumeIdx={minVolumeIdx}
-        onMinVolumeIdxChange={setMinVolumeIdx}
-      />
-      <NetworkControls
-        window={window}
-        onWindowChange={setWindow}
-      />
-      <LinkModeFilter value={linkFilter} onChange={setLinkFilter} />
-      <div className="flex">
-        <div className="text-left text-blue-400 font-semibold text-lg px-4 py-2">
-          {centralToken}
+      {/* Professional header bar: filters left, breadcrumb absolutely centered, right empty for symmetry */}
+      <div className="w-full relative flex flex-row items-center bg-gray-900 border-b border-gray-800 rounded-t px-8 py-4 mt-4" style={{minHeight: '64px'}}>
+        {/* Filters left, perfectly aligned */}
+        <div className="flex flex-row items-center gap-4">
+          <NetworkFilters
+            limit={limit}
+            onLimitChange={setLimit}
+          />
+          <NetworkControls
+            window={window}
+            onWindowChange={setWindow}
+          />
         </div>
+        {/* Breadcrumb absolutely centered */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <Breadcrumb path={navigationPath} currentToken={currentToken} onTokenClick={onTokenClick} />
+        </div>
+        {/* Right empty for symmetry/future controls */}
+        <div style={{ width: 120 }} />
+      </div>
+      {/* LinkModeFilter centered below the header bar */}
+      <div className="flex justify-center mt-2">
+        <LinkModeFilter value={linkFilter} onChange={setLinkFilter} />
       </div>
       <NetworkGraphContainer centralToken={centralToken}>
         <svg key={`${centralToken}-${window}`} ref={svgRef} width={1600} height={1000} />
