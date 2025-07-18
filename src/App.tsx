@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Header } from './components/Layout/Header';
 import { NetworkGraph } from './components/NetworkGraph/NetworkGraph';
-import { TokenStats } from './components/TokenStats/TokenStats';
 import { Breadcrumb } from './components/UI';
 import { useBreadcrumbNavigation } from './hooks';
 

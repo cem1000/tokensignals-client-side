@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { LoadingSpinner, ErrorMessage } from '../UI';
 import { NetworkGraphContainer } from './NetworkGraphContainer';
 import { NetworkFilters } from './NetworkFilters';
-import { NetworkControls } from './NetworkControls';
+import { RelativeTimeFilter } from './RelativeTimeFilter';
 import { useNetworkTooltip } from './hooks/useNetworkTooltip';
 import { useNetworkGraph } from './hooks/useNetworkGraph';
 import { useNetworkDataSimplified } from './hooks/useNetworkDataSimplified';
@@ -18,24 +18,22 @@ interface NetworkGraphWithBreadcrumbProps extends NetworkGraphProps {
 
 export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, currentToken, onTokenClick }: NetworkGraphWithBreadcrumbProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [window, setWindow] = useState<'24h' | '1h'>('24h');
   const [limit, setLimit] = useState<number>(25);
+  const [relativeTime, setRelativeTime] = useState<number>(60); // default 1h
   const [linkFilter, setLinkFilter] = useState<'all' | 'buy' | 'sell'>('all');
   const { showTooltip, hideTooltip, destroyTooltip } = useNetworkTooltip();
   const {
     filteredNodes,
     filteredLinks,
-    window: dataWindow,
     isLoading,
     error
-  } = useNetworkDataSimplified(centralToken, window, limit, 0, linkFilter);
+  } = useNetworkDataSimplified(centralToken, limit, relativeTime, linkFilter);
 
   useNetworkGraph({
     svgRef,
     filteredNodes,
     filteredLinks,
     centralToken,
-    window: dataWindow,
     onNodeClick,
     showTooltip,
     hideTooltip,
@@ -55,9 +53,9 @@ export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, curren
             limit={limit}
             onLimitChange={setLimit}
           />
-          <NetworkControls
-            window={window}
-            onWindowChange={setWindow}
+          <RelativeTimeFilter
+            value={relativeTime}
+            onChange={setRelativeTime}
           />
         </div>
         {/* Breadcrumb absolutely centered */}
@@ -72,7 +70,7 @@ export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, curren
         <LinkModeFilter value={linkFilter} onChange={setLinkFilter} />
       </div>
       <NetworkGraphContainer centralToken={centralToken}>
-        <svg key={`${centralToken}-${window}`} ref={svgRef} width={1600} height={1000} />
+        <svg key={`${centralToken}-${relativeTime}`} ref={svgRef} width={1600} height={1000} />
       </NetworkGraphContainer>
     </div>
   );
