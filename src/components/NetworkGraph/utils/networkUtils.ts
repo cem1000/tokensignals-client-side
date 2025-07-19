@@ -49,7 +49,7 @@ export const filterNetworkDataByVolume = (
   return { nodes: filteredNodes, links: filteredLinks };
 };
 
-export const calculateLinkRatio = (link: NetworkLink, window: '24h' | '1h' = '24h'): LinkRatio => {
+export const calculateLinkRatio = (link: NetworkLink): LinkRatio => {
   if (!link) {
     return { ratio: 1, deviation: 0, intensity: 0, inflowShare: 0.5 };
   }
@@ -62,47 +62,62 @@ export const calculateLinkRatio = (link: NetworkLink, window: '24h' | '1h' = '24
     return { ratio: 1, deviation: 0, intensity: 0, inflowShare: 0.5 };
   }
   
-  // Scale intensity based on timeframe
-  const timeScale = window === '1h' ? 24 : 1; // 1h data needs 24x scaling to match 24h intensity
+  const inflowShare = inflow / total;
+  const outflowShare = outflow / total;
   
-  let ratio;
-  if (inflow > outflow) {
-    ratio = outflow > 0 ? inflow / outflow : 5;
+  // Intensity based on dominant flow share (0.5 to 1.0)
+  let intensity: number;
+  if (outflowShare > 0.5) {
+    // Red (central buying) - intensity based on outflow share
+    intensity = outflowShare;
   } else {
-    ratio = inflow > 0 ? outflow / inflow : 5;
+    // Green (central selling) - intensity based on inflow share
+    intensity = inflowShare;
   }
   
-  const deviation = Math.abs(ratio - 1);
-  const amplifiedDeviation = Math.pow(deviation, 0.3);
-  const intensity = Math.min(amplifiedDeviation * timeScale, 1);
-  const inflowShare = inflow / total;
+  // Use the same intensity for ratio (thickness)
+  const ratio = intensity;
+  const deviation = Math.abs(ratio - 0.5);
+  
+  // Ensure intensity is properly scaled (0.5 to 1.0)
+  intensity = Math.max(0.5, Math.min(1.0, intensity));
   
   return { ratio, deviation, intensity, inflowShare };
 };
 
-export const getLinkColor = (link: NetworkLink, _mode: LinkMode, window: '24h' | '1h' = '24h'): string => {
+export const getLinkColor = (link: NetworkLink, _mode: LinkMode): string => {
   if (!link) return '#808080'; // Default gray for null links
   
-  const { intensity, inflowShare } = calculateLinkRatio(link, window);
+  const { intensity } = calculateLinkRatio(link);
+  const inflow = link.centralInflow ?? 0;
+  const outflow = link.centralOutflow ?? 0;
+  const total = inflow + outflow;
   
-  if (inflowShare > 0.5) {
-    // Stronger green: more dramatic range from light to dark green
-    const greenValue = Math.round(50 + (intensity * 205)); // 50-255 range instead of 100-255
-    return `#00${greenValue.toString(16).padStart(2, '0')}00`;
-  } else {
-    // Stronger red: more dramatic range from light to dark red
-    const redValue = Math.round(50 + (intensity * 205)); // 50-255 range instead of 100-255
+  if (total <= 0) return '#808080';
+  
+  const outflowShare = outflow / total;
+  
+  if (outflowShare > 0.5) {
+    // Red: Central node is BUYING from secondary node (outflow > inflow)
+    const redValue = Math.round(100 + (intensity * 155)); // Increased minimum from 50 to 100
     return `#${redValue.toString(16).padStart(2, '0')}0000`;
+  } else {
+    // Green: Central node is SELLING to secondary node (inflow > outflow)
+    const greenValue = Math.round(50 + (intensity * 205));
+    return `#00${greenValue.toString(16).padStart(2, '0')}00`;
   }
 };
 
-export const getLinkStrokeWidth = (link: NetworkLink, window: '24h' | '1h' = '24h'): number => {
-  if (!link) return 1.5;
+export const getLinkStrokeWidth = (link: NetworkLink): number => {
+  if (!link) return 2;
   
-  const minStroke = 1.5;
+  const minStroke = 2;
   const maxStroke = 6;
-  const { intensity } = calculateLinkRatio(link, window);
-  return minStroke + (maxStroke - minStroke) * intensity;
+  const { intensity } = calculateLinkRatio(link);
+  
+  // Map buy/sell share (0.5-1.0) to stroke width (2-6)
+  const strokeWidth = minStroke + (maxStroke - minStroke) * ((intensity - 0.5) / 0.5);
+  return strokeWidth;
 };
 
 export const getLinkOpacity = (link: NetworkLink, mode: LinkMode): number => {
@@ -114,17 +129,21 @@ export const getLinkOpacity = (link: NetworkLink, mode: LinkMode): number => {
     return inflowShare <= 0.5 ? 0.8 : 0.3;
   }
 };
-export const getArrowSpeed = (link: NetworkLink, window: '24h' | '1h' = '24h'): number => {
-  if (!link) return 1.5;
+export const getArrowSpeed = (link: NetworkLink): number => {
+  if (!link) return 3;
   
-  const { intensity } = calculateLinkRatio(link, window);
+  const { intensity } = calculateLinkRatio(link);
   const totalVolume = (link.centralInflow ?? 0) + (link.centralOutflow ?? 0);
   
-  // Scale volume factor based on timeframe
-  const volumeThreshold = window === '1h' ? 12500 : 300000; // Much lower threshold for 1h data
-  const volumeFactor = Math.min(totalVolume / volumeThreshold, 10);
+  // Single volume threshold since we only use one API
+  const volumeThreshold = 100000;
+  const volumeFactor = Math.min(totalVolume / volumeThreshold, 15);
   
-  return Math.max(1.5, intensity * volumeFactor * 3);
+  const baseSpeed = 3;
+  const intensitySpeed = intensity * 40; // Increased from 20 to 40 for more dramatic difference
+  const volumeSpeed = volumeFactor * 3;
+  
+  return Math.max(baseSpeed, intensitySpeed + volumeSpeed);
 };
 
 export const getNodeRadiusByPairVolume = (
@@ -151,8 +170,16 @@ export const getNodeRadiusByPairVolume = (
 export const filterLinksByMode = (links: any[], mode: 'all' | 'buy' | 'sell') => {
   if (mode === 'all') return links;
   return links.filter((link: any) => {
-    const { inflowShare } = calculateLinkRatio(link);
-    return mode === 'buy' ? inflowShare > 0.5 : inflowShare <= 0.5;
+    const inflow = link.centralInflow ?? 0;
+    const outflow = link.centralOutflow ?? 0;
+    const total = inflow + outflow;
+    
+    if (total <= 0) return false;
+    
+    const outflowShare = outflow / total;
+    
+    // buy = central selling (green), sell = central buying (red)
+    return mode === 'buy' ? outflowShare <= 0.5 : outflowShare > 0.5;
   });
 };
 

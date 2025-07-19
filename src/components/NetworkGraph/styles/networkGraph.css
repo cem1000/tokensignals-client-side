@@ -30,6 +30,8 @@
 
 .link {
   transition: opacity 0.2s ease-in-out;
+  will-change: stroke-dashoffset;
+  transform: translateZ(0);
 }
 
 .label {

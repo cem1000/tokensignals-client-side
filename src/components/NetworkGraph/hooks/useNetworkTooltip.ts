@@ -35,34 +35,22 @@ const formatTooltipContent = (node: NetworkNode, links: NetworkLink[], centralTo
         <div style="font-weight: bold; margin-bottom: 4px;">${centralToken} (Aggregate)</div>
         <div>Volume: $${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
         <div>Swaps: ${totalSwaps.toLocaleString()}</div>
-        <div>% Buys (inflow): <span style='color:#10b981;'>${buyPct}%</span></div>
-        <div>% Sells (outflow): <span style='color:#ef4444;'>${sellPct}%</span></div>
+        <div>Avg Trade: $${(totalVolume / totalSwaps).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+        <div>% Inflow to ${centralToken}: <span style='color:#10b981;'>${buyPct}%</span></div>
+        <div>% Outflow from ${centralToken}: <span style='color:#ef4444;'>${sellPct}%</span></div>
       </div>
     `;
   }
-  // If hovering a secondary node, show pair stats
+  // If hovering a secondary node, show pair stats from central token perspective
   const link = getLinkBetween(node.id, centralToken, links);
   if (!link) return '';
 
-  let inflow = 0;
-  let outflow = 0;
-  if (typeof link.source === 'object' && link.source.id === node.id) {
-    // node is source
-    inflow = link.outflow ?? 0;
-    outflow = link.inflow ?? 0;
-  } else if (typeof link.target === 'object' && link.target.id === node.id) {
-    inflow = link.inflow ?? 0;
-    outflow = link.outflow ?? 0;
-  } else if (typeof link.source === 'string' && link.source === node.id) {
-    inflow = link.outflow ?? 0;
-    outflow = link.inflow ?? 0;
-  } else {
-    inflow = link.inflow ?? 0;
-    outflow = link.outflow ?? 0;
-  }
-  const total = inflow + outflow;
-  const buyPct = total > 0 ? Math.round((inflow / total) * 100) : 0;
-  const sellPct = total > 0 ? Math.round((outflow / total) * 100) : 0;
+  // Use central token perspective (same as color logic)
+  const centralInflow = link.centralInflow ?? 0;
+  const centralOutflow = link.centralOutflow ?? 0;
+  const total = centralInflow + centralOutflow;
+  const buyPct = total > 0 ? Math.round((centralInflow / total) * 100) : 0;
+  const sellPct = total > 0 ? Math.round((centralOutflow / total) * 100) : 0;
   const totalVolume = link.totalVolumeUSD ?? 0;
   const totalSwaps = link.totalSwaps ?? 0;
   return `
@@ -71,8 +59,9 @@ const formatTooltipContent = (node: NetworkNode, links: NetworkLink[], centralTo
       <div style="font-weight: bold; margin-bottom: 4px;">${node.id} ↔ ${centralToken}</div>
       <div>Volume: $${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
       <div>Swaps: ${totalSwaps.toLocaleString()}</div>
-      <div>% Buys (of ${node.id}): <span style='color:#10b981;'>${buyPct}%</span></div>
-      <div>% Sells (of ${node.id}): <span style='color:#ef4444;'>${sellPct}%</span></div>
+      <div>Avg Trade: $${(totalVolume / totalSwaps).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+      <div>% Inflow to ${centralToken}: <span style='color:#10b981;'>${buyPct}%</span></div>
+      <div>% Outflow from ${centralToken}: <span style='color:#ef4444;'>${sellPct}%</span></div>
     </div>
   `;
 };

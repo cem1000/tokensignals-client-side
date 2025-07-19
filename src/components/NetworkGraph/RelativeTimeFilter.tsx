@@ -19,9 +19,9 @@ interface RelativeTimeFilterProps {
 
 export const RelativeTimeFilter: React.FC<RelativeTimeFilterProps> = ({ value, onChange }) => (
   <div className="flex items-center gap-2">
-    <span className="text-gray-400">Time:</span>
+    <span className="text-gray-300 font-medium text-sm">Time:</span>
     <select
-      className="bg-gray-800 text-white px-2 py-1 rounded"
+      className="bg-gray-800 text-white px-3 py-1.5 rounded-md border border-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       value={value}
       onChange={e => onChange(Number(e.target.value))}
     >

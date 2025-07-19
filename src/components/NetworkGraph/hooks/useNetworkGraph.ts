@@ -17,7 +17,6 @@ interface UseNetworkGraphProps {
   filteredNodes: any[];
   filteredLinks: any[];
   centralToken: string;
-  window: '24h' | '1h';
   onNodeClick?: (id: string) => void;
   showTooltip: (...args: any[]) => void;
   hideTooltip: (...args: any[]) => void;
@@ -29,7 +28,6 @@ export function useNetworkGraph({
   filteredNodes,
   filteredLinks,
   centralToken,
-  window,
   onNodeClick,
   showTooltip,
   hideTooltip,
@@ -67,12 +65,15 @@ export function useNetworkGraph({
       .selectAll('line')
       .data(filteredLinks)
       .enter().append('line')
-      .attr('stroke', (d: any) => getLinkColor(d, 'inflow', window))
-      .attr('stroke-width', (d: any) => getLinkStrokeWidth(d, window))
+      .attr('stroke', (d: any) => getLinkColor(d, 'inflow'))
+      .attr('stroke-width', (d: any) => getLinkStrokeWidth(d))
       .style('opacity', (d: any) => getLinkOpacity(d, 'inflow'))
-      .style('stroke-dasharray', '5,5')
+      .style('stroke-dasharray', '8,7')
       .style('stroke-dashoffset', '0')
       .style('stroke-linecap', 'round');
+
+    // Cache tooltip element for better performance
+    const tooltipElement = d3.select('body').select('.network-tooltip');
 
     const node = svg.append('g')
       .attr('stroke', '#fff')
@@ -95,7 +96,7 @@ export function useNetworkGraph({
         showTooltip(event, d, filteredLinks, centralToken);
       })
       .on('mousemove', function(event: any) {
-        d3.select('body').select('.network-tooltip')
+        tooltipElement
           .style('left', (event.pageX + 10) + 'px')
           .style('top', (event.pageY - 28) + 'px');
       })
@@ -118,22 +119,25 @@ export function useNetworkGraph({
 
   const createTickHandler = useCallback((link: any, node: any, label: any) => {
     return () => {
+      // Batch DOM updates for better performance
+      const time = Date.now() / 1000;
+      
       link
         .attr('x1', (d: any) => typeof d.source === 'object' && d.source !== null ? (d.source.x ?? 0) : 0)
         .attr('y1', (d: any) => typeof d.source === 'object' && d.source !== null ? (d.source.y ?? 0) : 0)
         .attr('x2', (d: any) => typeof d.target === 'object' && d.target !== null ? (d.target.x ?? 0) : 0)
         .attr('y2', (d: any) => typeof d.target === 'object' && d.target !== null ? (d.target.y ?? 0) : 0)
-        .attr('stroke-width', (d: any) => getLinkStrokeWidth(d, window))
+        .attr('stroke-width', (d: any) => getLinkStrokeWidth(d))
         .style('stroke-dashoffset', function(d: any) {
-          const speed = getArrowSpeed(d, window);
-          const time = Date.now() / 1000;
-          const { inflowShare } = calculateLinkRatio(d, window);
+          const speed = getArrowSpeed(d);
+          const { inflowShare } = calculateLinkRatio(d);
           
           // Determine direction: positive = flow towards central token, negative = flow away from central token
           const direction = inflowShare > 0.5 ? -1 : 1;
           
           // Calculate the dash offset to create moving particle effect
-          const offset = (time * speed * direction) % 10; // 10 = dasharray length (5+5)
+          const dashLength = 15;
+          const offset = (time * speed * direction) % dashLength;
           return offset.toString();
         });
       node
@@ -143,7 +147,7 @@ export function useNetworkGraph({
         .attr('x', (d: any) => (d.x ?? 0) + 22)
         .attr('y', (d: any) => (d.y ?? 0) + 5);
     };
-  }, []);
+  }, [window]);
 
   function dragstarted(event: any, d: any) {
     if (!event.active && simulationRef.current) simulationRef.current.alphaTarget(0.3).restart();
@@ -191,15 +195,21 @@ export function useNetworkGraph({
 
       // Add animation frame for smooth particle movement
       let animationId: number;
-      const animate = () => {
-        ticked();
+      let lastTime = 0;
+      const animate = (currentTime: number) => {
+        // Throttle animation to 60fps and reduce CPU usage
+        if (currentTime - lastTime >= 16) { // ~60fps
+          ticked();
+          lastTime = currentTime;
+        }
         animationId = requestAnimationFrame(animate);
       };
-      animate();
+      animate(0);
 
+      // Reduce simulation restart frequency to prevent excessive recalculations
       intervalRef.current = setInterval(() => {
-        simulation.alpha(0.05).restart();
-      }, 2000);
+        simulation.alpha(0.03).restart();
+      }, 3000);
 
       return () => {
         simulation.stop();

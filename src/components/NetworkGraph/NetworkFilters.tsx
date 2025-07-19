@@ -13,19 +13,17 @@ export const NetworkFilters: React.FC<NetworkFiltersProps> = ({
   onLimitChange
 }) => {
   return (
-    <div className="flex items-center gap-6 mb-4 px-4 py-2 bg-gray-900 border-b border-gray-800 rounded-t">
-      <div className="flex items-center gap-2">
-        <span className="text-gray-400">Limit:</span>
-        <select
-          className="bg-gray-800 text-white px-2 py-1 rounded"
-          value={limit}
-          onChange={e => onLimitChange(Number(e.target.value))}
-        >
-          {LIMIT_OPTIONS.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
-      </div>
+    <div className="flex items-center gap-2">
+      <span className="text-gray-300 font-medium text-sm">Limit:</span>
+      <select
+        className="bg-gray-800 text-white px-3 py-1.5 rounded-md border border-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        value={limit}
+        onChange={e => onLimitChange(Number(e.target.value))}
+      >
+        {LIMIT_OPTIONS.map(opt => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
     </div>
   );
 }; 

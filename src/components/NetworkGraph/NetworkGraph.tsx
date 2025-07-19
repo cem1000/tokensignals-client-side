@@ -48,7 +48,7 @@ export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, curren
       {/* Professional header bar: filters left, breadcrumb absolutely centered, right empty for symmetry */}
       <div className="w-full relative flex flex-row items-center bg-gray-900 border-b border-gray-800 rounded-t px-8 py-4 mt-4" style={{minHeight: '64px'}}>
         {/* Filters left, perfectly aligned */}
-        <div className="flex flex-row items-center gap-4">
+        <div className="flex flex-row items-center gap-6">
           <NetworkFilters
             limit={limit}
             onLimitChange={setLimit}

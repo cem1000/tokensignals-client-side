@@ -12,13 +12,13 @@ export const LinkModeFilter = ({ value, onChange }: { value: LinkMode; onChange:
       className={`px-3 py-1 rounded ${value === 'buy' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
       onClick={() => onChange('buy')}
     >
-      Buys
+      Inflow
     </button>
     <button
       className={`px-3 py-1 rounded ${value === 'sell' ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
       onClick={() => onChange('sell')}
     >
-      Sells
+      Outflow
     </button>
   </div>
 ); 
