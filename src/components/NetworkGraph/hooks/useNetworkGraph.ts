@@ -21,6 +21,7 @@ interface UseNetworkGraphProps {
   showTooltip: (...args: any[]) => void;
   hideTooltip: (...args: any[]) => void;
   destroyTooltip: (...args: any[]) => void;
+  getImageUrl?: (symbol: string) => string | null;
 }
 
 export function useNetworkGraph({
@@ -31,7 +32,8 @@ export function useNetworkGraph({
   onNodeClick,
   showTooltip,
   hideTooltip,
-  destroyTooltip
+  destroyTooltip,
+  getImageUrl
 }: UseNetworkGraphProps) {
   const simulationRef = useRef<d3.Simulation<any, any> | null>(null);
   const intervalRef = useRef<number | null>(null);
@@ -53,7 +55,7 @@ export function useNetworkGraph({
       .force('link', d3.forceLink(filteredLinks).id((d: any) => d?.id).distance(160).strength(0.8))
       .force('charge', d3.forceManyBody().strength(-1000))
       .force('center', d3.forceCenter(WIDTH / 2, HEIGHT / 2))
-      .force('collision', d3.forceCollide().radius((d: any) => rScale(d?.totalVolumeUSD ?? 0) + 8));
+      .force('collision', d3.forceCollide().radius(20));
 
     simulationRef.current = simulation;
     return { simulation, rScale };
@@ -75,14 +77,11 @@ export function useNetworkGraph({
     // Cache tooltip element for better performance
     const tooltipElement = d3.select('body').select('.network-tooltip');
 
-    const node = svg.append('g')
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 1.5)
-      .selectAll('circle')
+    // Create node groups for each token
+    const nodeGroup = svg.append('g')
+      .selectAll('g')
       .data(filteredNodes)
-      .enter().append('circle')
-      .attr('r', (d: any) => getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale))
-      .attr('fill', (d: any) => d.id === centralToken ? '#3b82f6' : '#6b7280')
+      .enter().append('g')
       .call((d3.drag() as any)
         .on('start', dragstarted)
         .on('drag', dragged)
@@ -104,6 +103,26 @@ export function useNetworkGraph({
         hideTooltip();
       });
 
+    // Add subtle border circle for visual definition (this will handle clicks)
+    nodeGroup.append('circle')
+      .attr('r', 16)
+      .attr('fill', 'transparent')
+      .attr('stroke', (d: any) => d.id === centralToken ? '#3b82f6' : '#ffffff')
+      .attr('stroke-width', (d: any) => d.id === centralToken ? 3 : 1.5);
+
+    // Add token images as the main node elements
+    if (getImageUrl) {
+      nodeGroup.append('image')
+        .attr('href', (d: any) => getImageUrl(d.id) || '')
+        .attr('x', -16)
+        .attr('y', -16)
+        .attr('width', 32)
+        .attr('height', 32)
+        .attr('clip-path', 'circle(16px at 16px 16px)')
+        .style('pointer-events', 'none')
+        .style('opacity', (d: any) => getImageUrl(d.id) ? 1 : 0);
+    }
+
     const label = svg.append('g')
       .selectAll('text')
       .data(filteredNodes)
@@ -114,10 +133,10 @@ export function useNetworkGraph({
       .attr('font-weight', 'bold')
       .style('pointer-events', 'none');
 
-    return { link, node, label };
+    return { link, node: nodeGroup, label };
   }, [filteredNodes, filteredLinks, centralToken, onNodeClick, showTooltip, hideTooltip]);
 
-  const createTickHandler = useCallback((link: any, node: any, label: any) => {
+  const createTickHandler = useCallback((svg: any, link: any, node: any, label: any) => {
     return () => {
       // Batch DOM updates for better performance
       const time = Date.now() / 1000;
@@ -141,8 +160,7 @@ export function useNetworkGraph({
           return offset.toString();
         });
       node
-        .attr('cx', (d: any) => d.x ?? 0)
-        .attr('cy', (d: any) => d.y ?? 0);
+        .attr('transform', (d: any) => `translate(${d.x ?? 0}, ${d.y ?? 0})`);
       label
         .attr('x', (d: any) => (d.x ?? 0) + 22)
         .attr('y', (d: any) => (d.y ?? 0) + 5);
@@ -189,7 +207,7 @@ export function useNetworkGraph({
       
       const { simulation, rScale } = simulationData;
       const { link, node, label } = renderElements(svg, rScale);
-      const ticked = createTickHandler(link, node, label);
+      const ticked = createTickHandler(svg, link, node, label);
 
       simulation.on('tick', ticked);
 

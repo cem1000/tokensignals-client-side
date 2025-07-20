@@ -6,6 +6,7 @@ import {
   getCentralTokenBuySellStats 
 } from '../utils/networkUtils';
 import { authService } from '../../../services/auth';
+import { useTokenImages } from './useTokenImages';
 
 async function fetchNetworkData(token: string, limit: number, relativeTime: number) {
   const now = Math.floor(Date.now() / 1000);
@@ -43,6 +44,15 @@ export function useNetworkDataSimplified(
     fetchData();
   }, [centralToken, limit, relativeTime]);
 
+  // Extract token symbols for image fetching (only when data is loaded)
+  const tokenSymbols = useMemo(() => {
+    if (!rawData?.nodes || !rawData.nodes.length) return [];
+    return rawData.nodes.map((node: any) => node.symbol || node.id).filter(Boolean);
+  }, [rawData]);
+
+  // Fetch token images (only when we have symbols)
+  const { getImageUrl } = useTokenImages(tokenSymbols.length > 0 ? tokenSymbols : []);
+
   const { filteredNodes, filteredLinks, centralBuySell } = useMemo(() => {
     if (!rawData) {
       return { filteredNodes: [], filteredLinks: [], centralBuySell: { buyPct: 0, sellPct: 0 } };
@@ -64,6 +74,7 @@ export function useNetworkDataSimplified(
     filteredLinks,
     centralBuySell,
     isLoading,
-    error
+    error,
+    getImageUrl
   };
 } 

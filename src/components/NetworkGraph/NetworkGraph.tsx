@@ -26,7 +26,8 @@ export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, curren
     filteredNodes,
     filteredLinks,
     isLoading,
-    error
+    error,
+    getImageUrl
   } = useNetworkDataSimplified(centralToken, limit, relativeTime, linkFilter);
 
   useNetworkGraph({
@@ -37,7 +38,8 @@ export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, curren
     onNodeClick,
     showTooltip,
     hideTooltip,
-    destroyTooltip
+    destroyTooltip,
+    getImageUrl
   });
 
   if (isLoading) return <LoadingSpinner />;
