@@ -10,10 +10,11 @@ interface TokenImageData {
 class TokenImageService {
   private cache = new Map<string, string>();
 
-  async fetchTokenImages(symbols: string[]): Promise<Record<string, string>> {
+  async fetchTokenImages(symbols: string[], progressCallback?: (loaded: number, total: number) => void): Promise<Record<string, string>> {
     const uncachedSymbols = symbols.filter(symbol => !this.cache.has(symbol));
     
     if (uncachedSymbols.length === 0) {
+      if (progressCallback) progressCallback(symbols.length, symbols.length);
       return Object.fromEntries(this.cache);
     }
 
@@ -32,8 +33,15 @@ class TokenImageService {
         });
       }
       
+      // Mark all symbols as processed (either with image or without)
+      symbols.forEach((symbol, index) => {
+        if (progressCallback) progressCallback(index + 1, symbols.length);
+      });
+      
     } catch (error) {
       console.warn('Failed to fetch token images:', error);
+      // Mark all as processed even on error
+      if (progressCallback) progressCallback(symbols.length, symbols.length);
     }
 
     return Object.fromEntries(this.cache);

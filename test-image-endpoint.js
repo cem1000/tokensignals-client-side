@@ -1,7 +1,7 @@
 // Simple test for token image endpoint
 const testImageEndpoint = async () => {
   const apiKey = 'test-api-key-123';
-  const tokens = ['WETH', 'USDC', 'DAI', 'USDT', 'WBTC'];
+  const tokens = ['WETH', 'USDC', 'DAI', 'USDT', 'WBTC', 'INVALIDTOKEN', 'FAKETOKEN'];
   
   try {
     console.log('🔑 Getting JWT token...');

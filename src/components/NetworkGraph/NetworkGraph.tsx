@@ -27,8 +27,21 @@ export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, curren
     filteredLinks,
     isLoading,
     error,
-    getImageUrl
+    getImageUrl,
+    isResolved,
+    loadingProgress
   } = useNetworkDataSimplified(centralToken, limit, relativeTime, linkFilter);
+
+  console.log('=== NETWORKGRAPH RENDER ===');
+  console.log('isLoading:', isLoading);
+  console.log('error:', error);
+  console.log('nodesLength:', filteredNodes?.length);
+  console.log('linksLength:', filteredLinks?.length);
+  console.log('isResolved:', isResolved);
+  console.log('loadingProgress:', loadingProgress);
+  console.log('Should show loading bar:', filteredNodes.length > 0 && !isResolved);
+  console.log('filteredNodes sample:', filteredNodes?.slice(0, 2));
+  console.log('filteredLinks sample:', filteredLinks?.slice(0, 2));
 
   useNetworkGraph({
     svgRef,
@@ -39,11 +52,28 @@ export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, curren
     showTooltip,
     hideTooltip,
     destroyTooltip,
-    getImageUrl
+    getImageUrl,
+    isResolved
   });
 
   if (isLoading) return <LoadingSpinner />;
   if (error) return <ErrorMessage message={error} />;
+
+  // Show loading bar while token images are being resolved
+  if (filteredNodes.length > 0 && !isResolved) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96">
+        <div className="text-white text-lg mb-4">Loading token images...</div>
+        <div className="w-64 bg-gray-700 rounded-full h-2">
+          <div 
+            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${loadingProgress}%` }}
+          />
+        </div>
+        <div className="text-gray-400 text-sm mt-2">{Math.round(loadingProgress)}%</div>
+      </div>
+    );
+  }
 
   return (
     <div>

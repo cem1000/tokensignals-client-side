@@ -22,6 +22,7 @@ interface UseNetworkGraphProps {
   hideTooltip: (...args: any[]) => void;
   destroyTooltip: (...args: any[]) => void;
   getImageUrl?: (symbol: string) => string | null;
+  isResolved?: boolean;
 }
 
 export function useNetworkGraph({
@@ -33,7 +34,8 @@ export function useNetworkGraph({
   showTooltip,
   hideTooltip,
   destroyTooltip,
-  getImageUrl
+  getImageUrl,
+  isResolved
 }: UseNetworkGraphProps) {
   const simulationRef = useRef<d3.Simulation<any, any> | null>(null);
   const intervalRef = useRef<number | null>(null);
@@ -55,7 +57,7 @@ export function useNetworkGraph({
       .force('link', d3.forceLink(filteredLinks).id((d: any) => d?.id).distance(160).strength(0.8))
       .force('charge', d3.forceManyBody().strength(-1000))
       .force('center', d3.forceCenter(WIDTH / 2, HEIGHT / 2))
-      .force('collision', d3.forceCollide().radius(20));
+      .force('collision', d3.forceCollide().radius((d: any) => getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale) + 8));
 
     simulationRef.current = simulation;
     return { simulation, rScale };
@@ -105,22 +107,48 @@ export function useNetworkGraph({
 
     // Add subtle border circle for visual definition (this will handle clicks)
     nodeGroup.append('circle')
-      .attr('r', 16)
+      .attr('r', (d: any) => getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale))
       .attr('fill', 'transparent')
       .attr('stroke', (d: any) => d.id === centralToken ? '#3b82f6' : '#ffffff')
       .attr('stroke-width', (d: any) => d.id === centralToken ? 3 : 1.5);
 
-    // Add token images as the main node elements
+    // Add token images or fallback circles
     if (getImageUrl) {
+      // Add token images for tokens that have them
       nodeGroup.append('image')
         .attr('href', (d: any) => getImageUrl(d.id) || '')
-        .attr('x', -16)
-        .attr('y', -16)
-        .attr('width', 32)
-        .attr('height', 32)
-        .attr('clip-path', 'circle(16px at 16px 16px)')
+        .attr('x', (d: any) => -getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale))
+        .attr('y', (d: any) => -getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale))
+        .attr('width', (d: any) => getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale) * 2)
+        .attr('height', (d: any) => getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale) * 2)
+        .attr('clip-path', (d: any) => `circle(${getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale)}px at ${getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale)}px ${getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale)}px)`)
         .style('pointer-events', 'none')
         .style('opacity', (d: any) => getImageUrl(d.id) ? 1 : 0);
+
+      // Add fallback circles for tokens without images
+      nodeGroup.append('circle')
+        .attr('r', (d: any) => getNodeRadiusByPairVolume(d, filteredLinks, centralToken, rScale))
+        .attr('fill', (d: any) => {
+          if (getImageUrl(d.id)) return 'transparent'; // Hide if image exists
+          // Generate color based on token symbol
+          const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'];
+          const hash = d.id.split('').reduce((a: number, b: string) => {
+            a = ((a << 5) - a) + b.charCodeAt(0);
+            return a & a;
+          }, 0);
+          return colors[Math.abs(hash) % colors.length];
+        })
+        .style('pointer-events', 'none');
+
+      // Add token symbol text for fallback circles
+      nodeGroup.append('text')
+        .text((d: any) => getImageUrl(d.id) ? '' : d.id.slice(0, 2).toUpperCase())
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('fill', 'white')
+        .attr('font-size', '12px')
+        .attr('font-weight', 'bold')
+        .style('pointer-events', 'none');
     }
 
     const label = svg.append('g')
@@ -185,15 +213,37 @@ export function useNetworkGraph({
   }
 
   useEffect(() => {
+    console.log('useNetworkGraph effect triggered:', {
+      hasNodes: !!filteredNodes,
+      hasLinks: !!filteredLinks,
+      hasSvg: !!svgRef.current,
+      nodesLength: filteredNodes?.length,
+      linksLength: filteredLinks?.length,
+      nodesType: typeof filteredNodes,
+      linksType: typeof filteredLinks,
+      isResolved,
+      hasGetImageUrl: !!getImageUrl
+    });
+
+    // Block rendering if we're waiting for images
+    if (getImageUrl && isResolved === false) {
+      console.log('⏳ Blocking graph render - waiting for images to resolve...');
+      return;
+    }
+
     if (!filteredNodes || !filteredLinks || !svgRef.current) {
       console.warn('Missing required data for network graph');
       return;
     }
     
+    console.log('✅ All data available, proceeding with graph setup');
+    
     if (filteredNodes.length === 0 || filteredLinks.length === 0) {
       console.warn('Empty data arrays for network graph');
       return;
     }
+
+    console.log('🎨 Starting graph rendering...');
     
     try {
       const svg = d3.select(svgRef.current);
@@ -243,5 +293,5 @@ export function useNetworkGraph({
     } catch (error) {
       console.error('Error setting up network graph:', error);
     }
-  }, [filteredNodes, filteredLinks, centralToken, onNodeClick, showTooltip, hideTooltip, destroyTooltip, createSimulation, renderElements, createTickHandler]);
+  }, [filteredNodes, filteredLinks, centralToken, onNodeClick, showTooltip, hideTooltip, destroyTooltip, createSimulation, renderElements, createTickHandler, isResolved, getImageUrl]);
 } 
