@@ -213,45 +213,25 @@ export function useNetworkGraph({
   }
 
   useEffect(() => {
-    console.log('useNetworkGraph effect triggered:', {
-      hasNodes: !!filteredNodes,
-      hasLinks: !!filteredLinks,
-      hasSvg: !!svgRef.current,
-      nodesLength: filteredNodes?.length,
-      linksLength: filteredLinks?.length,
-      nodesType: typeof filteredNodes,
-      linksType: typeof filteredLinks,
-      isResolved,
-      hasGetImageUrl: !!getImageUrl
-    });
-
     // Block rendering if we're waiting for images
     if (getImageUrl && isResolved === false) {
-      console.log('⏳ Blocking graph render - waiting for images to resolve...');
       return;
     }
 
     if (!filteredNodes || !filteredLinks || !svgRef.current) {
-      console.warn('Missing required data for network graph');
       return;
     }
     
-    console.log('✅ All data available, proceeding with graph setup');
-    
     if (filteredNodes.length === 0 || filteredLinks.length === 0) {
-      console.warn('Empty data arrays for network graph');
       return;
     }
 
-    console.log('🎨 Starting graph rendering...');
-    
     try {
       const svg = d3.select(svgRef.current);
       svg.selectAll('*').remove();
 
       const simulationData = createSimulation();
       if (!simulationData) {
-        console.warn('Failed to create simulation');
         return;
       }
       
@@ -291,7 +271,7 @@ export function useNetworkGraph({
         }
       };
     } catch (error) {
-      console.error('Error setting up network graph:', error);
+      // Error handling
     }
   }, [filteredNodes, filteredLinks, centralToken, onNodeClick, showTooltip, hideTooltip, destroyTooltip, createSimulation, renderElements, createTickHandler, isResolved, getImageUrl]);
 } 

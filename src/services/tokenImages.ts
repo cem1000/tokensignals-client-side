@@ -19,7 +19,7 @@ class TokenImageService {
     }
 
     try {
-      console.log('Fetching images for:', uncachedSymbols);
+
       const response = await authService.fetchWithAuth(
         `http://localhost:3000/api/tokens/images/batch?symbols=${uncachedSymbols.join(',')}`
       );
@@ -39,7 +39,6 @@ class TokenImageService {
       });
       
     } catch (error) {
-      console.warn('Failed to fetch token images:', error);
       // Mark all as processed even on error
       if (progressCallback) progressCallback(symbols.length, symbols.length);
     }

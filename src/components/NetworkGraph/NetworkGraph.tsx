@@ -32,16 +32,7 @@ export const NetworkGraph = ({ centralToken, onNodeClick, navigationPath, curren
     loadingProgress
   } = useNetworkDataSimplified(centralToken, limit, relativeTime, linkFilter);
 
-  console.log('=== NETWORKGRAPH RENDER ===');
-  console.log('isLoading:', isLoading);
-  console.log('error:', error);
-  console.log('nodesLength:', filteredNodes?.length);
-  console.log('linksLength:', filteredLinks?.length);
-  console.log('isResolved:', isResolved);
-  console.log('loadingProgress:', loadingProgress);
-  console.log('Should show loading bar:', filteredNodes.length > 0 && !isResolved);
-  console.log('filteredNodes sample:', filteredNodes?.slice(0, 2));
-  console.log('filteredLinks sample:', filteredLinks?.slice(0, 2));
+
 
   useNetworkGraph({
     svgRef,

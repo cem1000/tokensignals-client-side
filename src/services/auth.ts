@@ -8,7 +8,7 @@ class AuthService {
     }
 
     try {
-      console.log('Requesting JWT token with API key:', this.apiKey);
+
       const response = await fetch('http://localhost:3000/api/auth/token', {
         method: 'POST',
         headers: {
@@ -17,15 +17,12 @@ class AuthService {
         body: JSON.stringify({ apiKey: this.apiKey }),
       });
 
-      console.log('JWT response status:', response.status);
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('JWT error response:', errorText);
         throw new Error(`Failed to get token: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('JWT response:', data); // Debug the response structure
       
       // Handle different possible response structures
       if (data.data && data.data.token) {
@@ -40,7 +37,6 @@ class AuthService {
       
       return this.token!;
     } catch (error) {
-      console.error('Failed to get JWT token:', error);
       throw error;
     }
   }
