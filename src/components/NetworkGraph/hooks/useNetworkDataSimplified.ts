@@ -5,13 +5,14 @@ import {
   filterNodesByLinks, 
   getCentralTokenBuySellStats 
 } from '../utils/networkUtils';
+import { authService } from '../../../services/auth';
 
-function fetchNetworkData(token: string, limit: number, relativeTime: number) {
+async function fetchNetworkData(token: string, limit: number, relativeTime: number) {
   const now = Math.floor(Date.now() / 1000);
   const after = now - (relativeTime * 60);
-  const endpoint = `/api/token-pairs/after/${token}/${after}?limit=${limit}`;
+  const endpoint = `http://localhost:3000/api/token-pairs/after/${token}/${after}?limit=${limit}`;
   console.log('Fetching:', endpoint); // <-- log endpoint
-  return fetch(endpoint).then(res => res.json());
+  return authService.fetchWithAuth(endpoint);
 }
 
 export function useNetworkDataSimplified(
@@ -25,18 +26,21 @@ export function useNetworkDataSimplified(
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsLoading(true);
-    setError(null);
-    fetchNetworkData(centralToken, limit, relativeTime)
-      .then(res => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await fetchNetworkData(centralToken, limit, relativeTime);
         console.log('API response:', res); // <-- log response
         setRawData(res);
         setIsLoading(false);
-      })
-      .catch(e => {
+      } catch (e: any) {
         setError(e.message || 'Error fetching data');
         setIsLoading(false);
-      });
+      }
+    };
+
+    fetchData();
   }, [centralToken, limit, relativeTime]);
 
   const { filteredNodes, filteredLinks, centralBuySell } = useMemo(() => {
