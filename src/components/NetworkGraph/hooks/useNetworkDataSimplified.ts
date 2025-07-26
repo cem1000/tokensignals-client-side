@@ -5,14 +5,14 @@ import {
   filterNodesByLinks, 
   getCentralTokenBuySellStats 
 } from '../utils/networkUtils';
-import { authService } from '../../../services/auth';
+import { apiService } from '../../../services/auth';
 import { useTokenImages } from './useTokenImages';
 
 async function fetchNetworkData(token: string, limit: number, relativeTime: number) {
   const now = Math.floor(Date.now() / 1000);
   const after = now - (relativeTime * 60);
   const endpoint = `http://localhost:3000/api/token-pairs/after/${token}/${after}?limit=${limit}`;
-  return authService.fetchWithAuth(endpoint);
+  return apiService.fetchData(endpoint);
 }
 
 export function useNetworkDataSimplified(

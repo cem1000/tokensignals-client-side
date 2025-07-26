@@ -7,10 +7,6 @@ export const tokenApi = {
     return apiClient.get<Token[]>(`${API_ENDPOINTS.TOKENS_TOP}?limit=${limit}`);
   },
 
-  getToken: async (symbol: string) => {
-    return apiClient.get<Token>(`/api/tokens/${symbol}`);
-  },
-
   getTokenPairs: async (symbol: string, limit: number = 50) => {
     return apiClient.get<NetworkData>(`${API_ENDPOINTS.TOKEN_PAIRS}/${symbol}?limit=${limit}`);
   }
@@ -19,10 +15,6 @@ export const tokenApi = {
 export const swapApi = {
   getPairSwaps: async (token0: string, token1: string, hours: number = 24) => {
     return apiClient.get<Swap[]>(`/api/pairs/${token0}/${token1}/swaps?hours=${hours}`);
-  },
-
-  getSwapsFromTimestamp: async (timestamp: number, limit: number = 100) => {
-    return apiClient.get<Swap[]>(`/api/swaps/from/${timestamp}?limit=${limit}`);
   }
 };
 

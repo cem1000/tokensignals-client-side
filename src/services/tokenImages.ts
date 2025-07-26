@@ -1,4 +1,4 @@
-import { authService } from './auth';
+import { apiService } from './auth';
 
 interface TokenImageData {
   symbol: string;
@@ -20,7 +20,7 @@ class TokenImageService {
 
     try {
 
-      const response = await authService.fetchWithAuth(
+      const response = await apiService.fetchData(
         `http://localhost:3000/api/tokens/images/batch?symbols=${uncachedSymbols.join(',')}`
       );
       
